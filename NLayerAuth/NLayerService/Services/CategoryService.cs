@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NLayerCore.Dtos;
 using NLayerCore.Models;
 using NLayerCore.Repositories;
@@ -7,6 +8,7 @@ using NLayerCore.UnitOfWork;
 using NLayerData;
 using SharedLibrary.Response;
 
+
 namespace NLayerService.Services
 {
     public class CategoryService : ICategoryService
@@ -14,23 +16,29 @@ namespace NLayerService.Services
         private readonly AppDbContext _context;
         private readonly IGenericRepository<Category> categoryRepository;
         private readonly IUnitOfWork unitOfWork;
+        private readonly IMemoryCache memoryCache;
 
-        public CategoryService(AppDbContext context, IGenericRepository<Category> categoryRepository, IUnitOfWork unitOfWork)
+        public CategoryService(AppDbContext context, IGenericRepository<Category> categoryRepository, IUnitOfWork unitOfWork, IMemoryCache memoryCache)
         {
             _context = context;
             this.categoryRepository = categoryRepository;
             this.unitOfWork = unitOfWork;
+            this.memoryCache = memoryCache;
         }
 
         public async Task<Response<List<CategoryDto>>> GetAll()
         {
-            var categories = await _context.Categories.ToListAsync();
-            var categoryDtos = categories.Select(p => new CategoryDto()
+            var categoryDtos = memoryCache.Get<List<CategoryDto>>("categoryDtos");
+            if (categoryDtos == null)
             {
-                Id = p.Id,
-                Name = p.Name,
-            }).ToList();
-
+                var categories = await _context.Categories.ToListAsync();
+                categoryDtos = categories.Select(p => new CategoryDto()
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                }).ToList();
+                memoryCache.Set("categoryDtos", categoryDtos, TimeSpan.FromSeconds(10));
+            }
             if (!categoryDtos.Any())
             {
                 return new Response<List<CategoryDto>>()
@@ -40,7 +48,6 @@ namespace NLayerService.Services
                     Status = 404
                 };
             }
-
             return new Response<List<CategoryDto>>()
             {
                 Data = categoryDtos,

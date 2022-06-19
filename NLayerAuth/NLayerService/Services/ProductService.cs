@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using NLayerCore.Dtos;
 using NLayerCore.Models;
 using NLayerCore.Repositories;
@@ -17,27 +18,33 @@ namespace NLayerService.Services
         private readonly IGenericRepository<ProductFeature> productFeatureRepository;
 
         private readonly IUnitOfWork unitOfWork;
+        private readonly IMemoryCache memoryCache;
 
 
-        public ProductService(AppDbContext context, IGenericRepository<Product> productRepository, IGenericRepository<ProductFeature> productFeatureRepository, IUnitOfWork unitOfWork)
+        public ProductService(AppDbContext context, IGenericRepository<Product> productRepository, IGenericRepository<ProductFeature> productFeatureRepository, IUnitOfWork unitOfWork, IMemoryCache memoryCache)
         {
             _context = context;
             this.productRepository = productRepository;
             this.productFeatureRepository = productFeatureRepository;
             this.unitOfWork = unitOfWork;
+            this.memoryCache = memoryCache;
         }
 
         public async Task<Response<List<ProductDto>>> GetAll()
         {
-            var products = await _context.Products.ToListAsync();
-            var productDtos = products.Select(p => new ProductDto()
+            var productDtos = memoryCache.Get<List<ProductDto>>("productDtos");
+            if (productDtos == null)
             {
-                Id = p.Id,
-                Name = p.Name,
-                Price = p.Price,
-                CategoryId = p.CategoryId
-            }).ToList();
-
+                var products = await _context.Products.ToListAsync();
+                productDtos = products.Select(p => new ProductDto()
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Price = p.Price,
+                    CategoryId = p.CategoryId
+                }).ToList();
+            }
+            memoryCache.Set("productDtos", productDtos, TimeSpan.FromSeconds(10));
             if (!productDtos.Any())
             {
                 return new Response<List<ProductDto>>()

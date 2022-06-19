@@ -11,6 +11,7 @@ using NLayerData.Repositories;
 using NLayerService.Services;
 using SharedLibrary.Configuration;
 using SharedLibrary.Services;
+using StackExchange.Redis;
 using Swashbuckle.AspNetCore.Filters;
 using System.Reflection;
 
@@ -52,6 +53,12 @@ builder.Services.AddScoped<ICategoryService,CategoryService>();
 builder.Services.AddScoped<IProductFeatureService, ProductFeatureService>();
 builder.Services.AddScoped<IUnitOfWork,UnitOfWork>();
 builder.Services.AddScoped(typeof(IGenericRepository<>),typeof(GenericRepository<>));
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
+
+builder.Services.AddMemoryCache();//Category ve Product Servicelerin içinde GetAll methodlarýnda in memory cache kullandým.
+
+var multiplexer = ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("Redis"));
+builder.Services.AddSingleton<IConnectionMultiplexer>(multiplexer);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
